@@ -94,6 +94,7 @@ module "edge" {
   waf_rate_limit_per_5min = var.waf_rate_limit_per_5min
   deletion_protection     = local.is_prod
   log_retention_days      = var.log_retention_days
+  kms_key_arn             = aws_kms_key.main.arn
 }
 
 module "servers" {

@@ -13,3 +13,4 @@ skip-check:
   - CKV_AWS_109  # KMS key policy: "*" means "this key" and the root principal is the AWS-recommended default
   - CKV_AWS_111  # same KMS key policy
   - CKV_AWS_356  # same KMS key policy
+  - CKV2_AWS_76  # Log4j rule group is present (CKV_AWS_192 passes); this graph check cannot follow the count-based association

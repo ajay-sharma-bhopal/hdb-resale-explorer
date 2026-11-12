@@ -10,6 +10,7 @@ variable "enable_waf" { type = bool }
 variable "waf_rate_limit_per_5min" { type = number }
 variable "deletion_protection" { type = bool }
 variable "log_retention_days" { type = number }
+variable "kms_key_arn" { type = string }
 
 data "aws_elb_service_account" "this" {}
 
@@ -301,6 +302,32 @@ resource "aws_wafv2_web_acl" "this" {
     cloudwatch_metrics_enabled = true
     metric_name                = "${var.name}-waf"
     sampled_requests_enabled   = true
+  }
+}
+
+# WAF request logs (the "aws-waf-logs-" prefix is required by AWS WAF).
+resource "aws_cloudwatch_log_group" "waf" {
+  count             = var.enable_waf ? 1 : 0
+  name              = "aws-waf-logs-${var.name}"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
+}
+
+resource "aws_wafv2_web_acl_logging_configuration" "this" {
+  count                   = var.enable_waf ? 1 : 0
+  resource_arn            = aws_wafv2_web_acl.this[0].arn
+  log_destination_configs = [aws_cloudwatch_log_group.waf[0].arn]
+
+  # Never log credentials or session cookies.
+  redacted_fields {
+    single_header {
+      name = "authorization"
+    }
+  }
+  redacted_fields {
+    single_header {
+      name = "cookie"
+    }
   }
 }
 
