@@ -56,6 +56,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
     noncurrent_version_expiration {
       noncurrent_days = 30
     }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
@@ -221,7 +224,6 @@ resource "aws_wafv2_web_acl" "this" {
   dynamic "rule" {
     for_each = {
       AWSManagedRulesCommonRuleSet          = 10
-      AWSManagedRulesKnownBadInputsRuleSet  = 20
       AWSManagedRulesSQLiRuleSet            = 30
       AWSManagedRulesAmazonIpReputationList = 40
     }
@@ -252,6 +254,27 @@ resource "aws_wafv2_web_acl" "this" {
         metric_name                = "${var.name}-${rule.key}"
         sampled_requests_enabled   = true
       }
+    }
+  }
+
+  # Declared statically (not in the dynamic block above) so scanners can verify that the
+  # Log4j / Log4Shell protection (Log4JRCE in this rule group) is active.
+  rule {
+    name     = "AWSManagedRulesKnownBadInputsRuleSet"
+    priority = 20
+    override_action {
+      none {}
+    }
+    statement {
+      managed_rule_group_statement {
+        vendor_name = "AWS"
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name}-AWSManagedRulesKnownBadInputsRuleSet"
+      sampled_requests_enabled   = true
     }
   }
 

@@ -221,9 +221,9 @@ variable "health_check_path" {
 # ------------------------------------------------------------ operations ---
 
 variable "log_retention_days" {
-  description = "CloudWatch Logs retention (days)."
+  description = "CloudWatch Logs retention (days). Secure default of 1 year; non-prod tfvars may shorten it."
   type        = number
-  default     = 90
+  default     = 365
 }
 
 variable "alarm_email" {

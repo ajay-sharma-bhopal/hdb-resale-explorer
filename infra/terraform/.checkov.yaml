@@ -7,3 +7,9 @@ skip-check:
   - CKV_AWS_144  # cross-region replication: single-region by data-residency requirement
   - CKV2_AWS_62  # S3 event notifications not required for log bucket
   - CKV2_AWS_28  # WAF is attached via aws_wafv2_web_acl_association (variable-controlled)
+  - CKV_AWS_150  # ALB deletion protection is variable-driven: on in prod, off in dev/test for teardown
+  - CKV_AWS_353  # Performance Insights is variable-driven: on for SE/EE, unsupported on Express (dev)
+  - CKV_AWS_394  # AZs are filtered to regular zones and sliced by az_count, so the set cannot grow
+  - CKV_AWS_109  # KMS key policy: "*" means "this key" and the root principal is the AWS-recommended default
+  - CKV_AWS_111  # same KMS key policy
+  - CKV_AWS_356  # same KMS key policy

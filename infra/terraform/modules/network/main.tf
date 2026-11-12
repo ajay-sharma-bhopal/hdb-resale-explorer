@@ -8,6 +8,12 @@ variable "log_retention_days" { type = number }
 
 data "aws_availability_zones" "available" {
   state = "available"
+
+  # Regular AZs only: never place servers in Local/Wavelength Zones added later.
+  filter {
+    name   = "opt-in-status"
+    values = ["opt-in-not-required"]
+  }
 }
 
 locals {
