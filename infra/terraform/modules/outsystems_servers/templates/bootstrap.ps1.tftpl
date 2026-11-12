@@ -1,0 +1,67 @@
+<powershell>
+# OutSystems 11 Platform Server bootstrap (${server_role}) - rendered by Terraform.
+# Idempotent: safe to re-run via SSM Run Command. Secrets are fetched at runtime from
+# Secrets Manager and never written into user data or the Terraform state.
+$ErrorActionPreference = "Stop"
+Start-Transcript -Path "C:\ProgramData\OutSystemsBootstrap\bootstrap.log" -Append
+
+$Role              = "${server_role}"
+$Region            = "${region}"
+$InstallerBucket   = "${installer_bucket}"
+$OutSystemsVersion = "${outsystems_version}"
+$DbEndpoint        = "${db_endpoint}"
+$DbSecretArn       = "${db_secret_arn}"
+$ControllerHost    = "${controller_host}"
+$LogGroupPrefix    = "${log_group_prefix}"
+$Work              = "C:\ProgramData\OutSystemsBootstrap"
+New-Item -ItemType Directory -Force -Path $Work | Out-Null
+
+# 1. OS hardening baseline -------------------------------------------------------------
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name Enabled -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server" -Name Enabled -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+Set-TimeZone -Id "Singapore Standard Time"
+
+# 2. Prerequisites: IIS + ASP.NET + .NET (as required by the Platform Server installer) ----
+$features = "Web-Server","Web-Asp-Net45","Web-Http-Redirect","Web-Windows-Auth","Web-Mgmt-Console","Web-Http-Logging","Web-Request-Monitor","Web-Dyn-Compression","NET-Framework-45-ASPNET","WAS"
+Install-WindowsFeature -Name $features -IncludeManagementTools | Out-Null
+
+# 3. CloudWatch agent: IIS logs, OutSystems logs and Windows events -------------------------
+$cwConfig = @{
+  logs = @{ logs_collected = @{
+    files = @{ collect_list = @(
+      @{ file_path = "C:\inetpub\logs\LogFiles\W3SVC1\*.log"; log_group_name = "$LogGroupPrefix/iis";        log_stream_name = "{instance_id}" },
+      @{ file_path = "C:\Program Files\OutSystems\Platform Server\logs\*.log"; log_group_name = "$LogGroupPrefix/outsystems"; log_stream_name = "{instance_id}" }
+    )}
+    windows_events = @{ collect_list = @(
+      @{ event_name = "System";      event_levels = @("ERROR","WARNING"); log_group_name = "$LogGroupPrefix/windows-events"; log_stream_name = "{instance_id}-system" },
+      @{ event_name = "Application"; event_levels = @("ERROR","WARNING"); log_group_name = "$LogGroupPrefix/windows-events"; log_stream_name = "{instance_id}-application" }
+    )}
+  }}
+  metrics = @{ namespace = "OutSystems/Servers"; append_dimensions = @{ InstanceId = "`$${aws:InstanceId}" }; metrics_collected = @{
+    LogicalDisk = @{ measurement = @("% Free Space"); resources = @("C:") }
+    Memory      = @{ measurement = @("% Committed Bytes In Use") }
+  }}
+} | ConvertTo-Json -Depth 10
+$cwConfig | Out-File "$Work\cwagent.json" -Encoding ascii
+if (Test-Path "C:\Program Files\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent-ctl.ps1") {
+  & "C:\Program Files\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent-ctl.ps1" -a fetch-config -m ec2 -s -c "file:$Work\cwagent.json"
+}
+
+# 4. Platform Server installation (installer + configuration script are versioned together in S3)
+$installer = "$Work\PlatformServer-$OutSystemsVersion.exe"
+if (-not (Test-Path "C:\Program Files\OutSystems\Platform Server\ConfigurationTool.exe")) {
+  Read-S3Object -BucketName $InstallerBucket -Key "outsystems/$OutSystemsVersion/PlatformServer-$OutSystemsVersion.exe" -File $installer -Region $Region | Out-Null
+  Start-Process -FilePath $installer -ArgumentList "/S" -Wait
+}
+
+# 5. Configuration: render server.hsconf and run the Configuration Tool unattended.
+#    configure-platform.ps1 owns the version-specific Configuration Tool arguments so they can
+#    change with the platform version without changing infrastructure code.
+$secret = (Get-SECSecretValue -SecretId $DbSecretArn -Region $Region).SecretString | ConvertFrom-Json
+Read-S3Object -BucketName $InstallerBucket -Key "outsystems/$OutSystemsVersion/configure-platform.ps1" -File "$Work\configure-platform.ps1" -Region $Region | Out-Null
+& "$Work\configure-platform.ps1" -Role $Role -DbServer $DbEndpoint -DbAdminUser $secret.username -DbAdminPassword $secret.password -ControllerHost $ControllerHost -Environment "${environment}"
+Remove-Variable secret
+
+Stop-Transcript
+</powershell>
+<persist>false</persist>

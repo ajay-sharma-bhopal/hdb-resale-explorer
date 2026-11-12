@@ -1,0 +1,70 @@
+name: deploy
+
+# Promotes the OutSystems application through the pipeline with the LifeTime
+# Deployment API v2, gating every hop on the automated tests:
+#   Development --(tag version)--> Test --(tests green + approval)--> Production
+on:
+  workflow_dispatch:
+    inputs:
+      change_log:
+        description: "Release notes for the tagged version"
+        required: true
+      promote_to_production:
+        description: "Continue to Production after Test passes (requires approval)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  LIFETIME_URL: ${{ vars.LIFETIME_URL }}
+  APPLICATION_NAME: ${{ vars.OUTSYSTEMS_APPLICATION_NAME }}
+
+jobs:
+  to-test:
+    runs-on: ubuntu-latest
+    environment: test
+    outputs:
+      version_key: ${{ steps.deploy.outputs.version_key }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tests/requirements.txt && python -m playwright install --with-deps chromium
+      - id: deploy
+        name: Tag in Development and deploy to Test
+        run: >
+          python scripts/lifetime_deploy.py
+          --source "${{ vars.LT_DEV_ENVIRONMENT }}" --target "${{ vars.LT_TEST_ENVIRONMENT }}"
+          --tag --change-log "${{ inputs.change_log }}"
+        env:
+          LIFETIME_TOKEN: ${{ secrets.LIFETIME_TOKEN }}
+      - name: Regression tests against Test
+        run: pytest tests/api && pytest tests/e2e -m e2e --browser chromium
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+
+  to-production:
+    needs: to-test
+    if: inputs.promote_to_production
+    runs-on: ubuntu-latest
+    environment: production # protected environment: required reviewers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests==2.32.3
+      - name: Deploy the tested version to Production
+        run: >
+          python scripts/lifetime_deploy.py
+          --source "${{ vars.LT_TEST_ENVIRONMENT }}" --target "${{ vars.LT_PROD_ENVIRONMENT }}"
+          --version-key "${{ needs.to-test.outputs.version_key }}"
+        env:
+          LIFETIME_TOKEN: ${{ secrets.LIFETIME_TOKEN }}
+      - name: Production smoke test (read-only)
+        run: pip install pytest==8.3.3 && pytest tests/api -k "health or default_page"
+        env:
+          APP_BASE_URL: ${{ vars.PROD_APP_BASE_URL }}

@@ -1,0 +1,9 @@
+environment              = "test"
+domain_name              = "hdb-resale.test.example.gov.sg"
+acm_certificate_arn      = "arn:aws:acm:ap-southeast-1:111111111111:certificate/00000000-0000-0000-0000-000000000002"
+installer_bucket         = "msf-outsystems-installers"
+allowed_ingress_cidrs    = ["10.0.0.0/8"]
+frontend_count           = 1
+single_nat_gateway       = true
+db_multi_az              = false
+db_backup_retention_days = 7

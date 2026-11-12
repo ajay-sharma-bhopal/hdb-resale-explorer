@@ -1,0 +1,9 @@
+# Documented, deliberate exceptions only.
+skip-check:
+  - CKV_AWS_2    # HTTP listener exists solely to 301-redirect to HTTPS
+  - CKV_AWS_260  # same: port 80 ingress is redirect-only
+  - CKV_AWS_145  # ALB access-log bucket must use SSE-S3 (log delivery does not support SSE-KMS)
+  - CKV_AWS_18   # access logging on the access-log bucket itself (would recurse)
+  - CKV_AWS_144  # cross-region replication: single-region by data-residency requirement
+  - CKV2_AWS_62  # S3 event notifications not required for log bucket
+  - CKV2_AWS_28  # WAF is attached via aws_wafv2_web_acl_association (variable-controlled)
