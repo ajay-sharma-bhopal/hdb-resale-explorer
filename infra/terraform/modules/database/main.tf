@@ -115,8 +115,8 @@ resource "aws_db_instance" "this" {
 
   lifecycle {
     precondition {
-      condition     = !(var.multi_az && var.engine == "sqlserver-ex")
-      error_message = "SQL Server Express does not support Multi-AZ; use sqlserver-se or sqlserver-ee."
+      condition     = !var.multi_az || contains(["sqlserver-se", "sqlserver-ee"], var.engine)
+      error_message = "RDS SQL Server Multi-AZ requires sqlserver-se or sqlserver-ee."
     }
   }
 }

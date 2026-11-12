@@ -157,6 +157,12 @@ variable "db_multi_az" {
   description = "Multi-AZ RDS deployment (synchronous standby). Required in prod."
   type        = bool
   default     = false
+
+  # Cross-variable validation needs Terraform >= 1.9.
+  validation {
+    condition     = !var.db_multi_az || contains(["sqlserver-se", "sqlserver-ee"], var.db_engine)
+    error_message = "RDS SQL Server Multi-AZ requires sqlserver-se or sqlserver-ee (not Express or Web)."
+  }
 }
 
 variable "db_backup_retention_days" {

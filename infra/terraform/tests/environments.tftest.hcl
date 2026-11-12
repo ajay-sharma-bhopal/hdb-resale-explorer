@@ -87,7 +87,7 @@ run "express_edition_cannot_be_multi_az" {
     db_multi_az = true
   }
 
-  expect_failures = [module.database.aws_db_instance.this]
+  expect_failures = [var.db_multi_az]
 }
 
 run "rejects_unknown_environment" {
