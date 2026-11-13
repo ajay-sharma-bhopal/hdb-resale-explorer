@@ -17,7 +17,7 @@ ITEM_FIELDS = {
 def health(api):
     status, body = api("/health")
     assert status == 200
-    if body["status"] == "EMPTY":
+    if body.get("status") == "EMPTY":
         pytest.skip("Snapshot not loaded yet (first sync still running)")
     return body
 
@@ -32,7 +32,7 @@ def test_default_page_shape(api, health):
     status, page = api("/transactions")
     assert status == 200
     assert page["totalCount"] == health["snapshotRowCount"]
-    assert page["startIndex"] == 0
+    assert page.get("startIndex", 0) == 0  # 0 is the default, so OutSystems may omit it
     assert 0 < len(page["items"]) <= 25
     assert ITEM_FIELDS <= set(page["items"][0])
     months = [i["TransactionMonth"] for i in page["items"]]

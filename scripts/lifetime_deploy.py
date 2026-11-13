@@ -4,7 +4,9 @@ Deployment API v2 (https://<lifetime>/lifetimeapi/rest/v2).
   python scripts/lifetime_deploy.py --source Development --target Test --tag --change-log "..."
   python scripts/lifetime_deploy.py --source Test --target Production --version-key <key>
 
-Auth: a LifeTime service account token in LIFETIME_TOKEN. Prints version_key to
+The application defaults to $APPLICATION_NAME; pass --application to deploy
+another one (CI uses it for the separate test application, which goes to Test
+only). Auth: a LifeTime service account token in LIFETIME_TOKEN. Prints version_key to
 $GITHUB_OUTPUT so later jobs deploy exactly the version that was tested.
 """
 import argparse
@@ -81,6 +83,8 @@ def main() -> None:
     p.add_argument("--change-log", default="Automated release")
     p.add_argument("--version-key", help="deploy an already tagged version")
     a = p.parse_args()
+    if not a.application:
+        sys.exit("--application or APPLICATION_NAME is required")
 
     lt = LifeTime(os.environ["LIFETIME_URL"], os.environ["LIFETIME_TOKEN"])
     src, tgt, app = lt.env_key(a.source), lt.env_key(a.target), lt.app_key(a.application)

@@ -9,7 +9,7 @@ documentation.
 
 | Deliverable | Where |
 |---|---|
-| OutSystems application (module `Assessment`) | OutSystems environment (access provided separately) |
+| OutSystems applications: six modules (`HDBResale_Th`, `HDBResale_IS`, `HDBResale_CS`, `HDBResale_API`, `HDBResale`, `HDBResale_Tests`) | OutSystems environment `personal-ejuytnht.outsystemscloud.com` (access provided separately) |
 | AWS IaC for the OutSystems Platform | [`infra/terraform`](infra/terraform) |
 | Automated tests | [`tests`](tests) + in-platform `SelfTest_RunAll` + [`infra/terraform/tests`](infra/terraform/tests) |
 | CI/CD | [`.github/workflows`](.github/workflows), [`scripts/lifetime_deploy.py`](scripts/lifetime_deploy.py) |
@@ -31,7 +31,7 @@ single sale with the market.
 | **Explore** (`Transactions`) | Public | Search by street or block; filter by town, flat type, price range and date range; server-side sort on any column; pagination; empty and loading states. |
 | **Transaction details** | Public | Full record. Compared with its 12-month segment (same town and flat type): segment average, % above/below average, average price per sqm and highest price. Lists other sales in the same block. |
 | **Data Sync** | `DataAdmin` role | Load history with status tags and progress, snapshot size, and a "Refresh data now" button (role-checked on the server). |
-| **REST API** `/rest/ResaleAPI` | Public, read-only | `GET /transactions`, `GET /summary` (includes the median), `GET /health`. |
+| **REST API** `/HDBResale_API/rest/ResaleAPI` | Public, read-only | `GET /transactions`, `GET /summary` (includes the median), `GET /health`. |
 
 ## 2. Architecture
 
@@ -40,17 +40,17 @@ flowchart LR
   subgraph data.gov.sg
     DS[(datastore_search<br/>HDB resale prices)]
   end
-  subgraph OutSystems module "Assessment"
+  subgraph OutSystems
     direction TB
-    RC[REST consumer<br/>DataGovSG.DatastoreSearch] --> PP
-    T((Timer<br/>SyncResaleTransactions<br/>hourly + self-wake)) --> RR[Sync_ResolveRun] --> PP[Sync_ProcessPages<br/>page → MapResaleRecord → staging<br/>commit + checkpoint per page]
+    RC[HDBResale_IS<br/>DataGovSG_DatastoreSearch] --> PP
+    T((HDBResale_CS timer<br/>SyncResaleTransactions<br/>hourly + self-wake)) --> RR[Sync_ResolveRun] --> PP[Sync_ProcessPages<br/>page → MapResaleRecord → staging<br/>commit + checkpoint per page]
     PP --> STG[(ResaleTransactionStaging)]
     PP -->|load complete| PUB[Sync_PublishSnapshot<br/>atomic SQL swap]
     STG --> PUB --> TX[(ResaleTransaction<br/>indexed snapshot)]
     RUN[(SyncRun<br/>checkpoint + audit)] --- PP
-    TX --> AGG[Screen aggregates] --> UI[Reactive UI<br/>Overview · Explore · Details · Data Sync]
-    TX --> SQL[Resale_Search / Resale_GetSummary<br/>parameterised SQL] --> API[ResaleAPI REST]
-    ST[SelfTest_RunAll] --> STAPI[SelfTestAPI REST]
+    TX -->|read-only| AGG[Screen aggregates] --> UI[HDBResale UI<br/>Overview · Explore · Details · Data Sync]
+    TX --> SQL[Resale_Search / Resale_GetSummary<br/>parameterised SQL] --> API[HDBResale_API<br/>ResaleAPI REST]
+    ST[HDBResale_Tests<br/>SelfTest_RunAll] --> STAPI[SelfTestAPI REST]
   end
   DS <-- HTTPS JSON --> RC
   CI[GitHub Actions] -->|pytest / Playwright| API & STAPI & UI
@@ -91,19 +91,31 @@ by `_id` would therefore create duplicates or miss rows. Instead, each load is a
 
 More detail, alternatives and trade-offs are in [`docs/architecture.md`](docs/architecture.md).
 
-### Module structure (inside OutSystems)
+### Module structure (Architecture Canvas)
 
-| Layer | Elements |
+Six modules; references point only downwards (or End-user → Core). The rationale is in
+[ADR-8](docs/architecture.md#adr-8-split-into-modules-along-the-architecture-canvas).
+
+```mermaid
+flowchart TB
+  UI[HDBResale<br/>End-user · Reactive] --> CS & TH
+  API[HDBResale_API<br/>Core · exposed REST] --> CS
+  TST[HDBResale_Tests<br/>separate app, Dev/Test only] --> CS & IS
+  CS[HDBResale_CS<br/>Core · data, sync, rules] --> IS[HDBResale_IS<br/>Foundation · data.gov.sg]
+  TH[HDBResale_Th<br/>Foundation · theme]
+```
+
+| Module | Elements |
 |---|---|
-| Integration | REST consumer `DataGovSG` (`DatastoreSearch`), DTOs `ResaleRecordDTO`, `DatastoreResultDTO`, `DatastoreSearchResponseDTO`; optional `x-api-key` header (`Site.DataGovSG_ApiKey`, secret, not sent when empty) |
-| Data | `ResaleTransaction` (indexes on month; town + flat type + month; street + block), `ResaleTransactionStaging`, `SyncRun`, static `SyncStatus` |
-| Domain logic (pure, unit-tested) | `ParseMonthText`, `ParseRemainingLeaseMonths`, `MapResaleRecord` |
-| Sync orchestration | `Sync_ResolveRun`, `Sync_StartRun`, `Sync_ProcessPages`, `Sync_PublishSnapshot`, `Sync_UpdateRunStatus`, timer `SyncResaleTransactions` → `Timer_SyncResaleTransactions`, `Admin_RequestRefresh` |
-| Query services | `Resale_Search`, `Resale_GetSummary` |
-| Exposed APIs | `ResaleAPI` (`/transactions`, `/summary`, `/health`), `SelfTestAPI` (`/run`) |
-| UI | `MainFlow`: `Dashboard`, `Transactions`, `TransactionDetail`, `DataSync`; theme CSS uses the OutSystems UI design tokens |
-| Configuration (Site Properties) | `DataGovSG_ResourceId`, `DataGovSG_ApiKey`, `Sync_Enabled`, `Sync_PageSize`, `Sync_MaxPagesPerRun`, `Sync_RefreshIntervalHours`, `Sync_StaleRunMinutes`, `SelfTests_Enabled` |
-| Security | Role `DataAdmin` (screen gate **and** server-side `CheckDataAdminRole()`); public screens use the Anonymous role |
+| `HDBResale_IS` | Private REST consumer `DataGovSG` (`DatastoreSearch`, JSON structures); public wrapper `DataGovSG_DatastoreSearch` returning DTOs `ResaleRecordDTO` / `DatastorePage`; optional `x-api-key` header from `Site.DataGovSG_ApiKey` (secret, not sent when empty) |
+| `HDBResale_CS` | Entities `ResaleTransaction` (read-only public; indexes on month, town + flat type + month, street + block), `SyncRun` (read-only public), static `SyncStatus`, private `ResaleTransactionStaging`. Pure, unit-tested rules `ParseMonthText`, `ParseRemainingLeaseMonths`, `MapResaleRecord`. Sync `Sync_ResolveRun`, `Sync_StartRun`, `Sync_ProcessPages`, `Sync_PublishSnapshot`, `Sync_UpdateRunStatus`, timer `SyncResaleTransactions`. Services `Resale_Search`, `Resale_GetSummary`, `Resale_GetHealth`, `Admin_RequestRefresh`. Role `DataAdmin`. Site properties `DataGovSG_ResourceId`, `Sync_*` |
+| `HDBResale_API` | Exposed REST `ResaleAPI`: `/transactions`, `/summary`, `/health` (HTTP mapping only) |
+| `HDBResale` | `MainFlow`: `Dashboard` (default), `Transactions`, `TransactionDetail`, `DataSync` (`DataAdmin`); screen aggregates over CS's read-only entities; OutSystems Charts |
+| `HDBResale_Th` | Theme `HDBResale` on OutSystems UI, CSS built from its design tokens |
+| `HDBResale_Tests` | `SelfTest_RunAll` (20 table-driven cases), exposed REST `SelfTestAPI` (`/run`), `Site.SelfTests_Enabled` |
+
+**Security:** `DataAdmin` gates the Data Sync screen **and** is re-checked on the server
+inside `Admin_RequestRefresh` (`CheckDataAdminRole()`). Public screens use the Anonymous role.
 
 ## 3. Infrastructure as Code (AWS)
 
@@ -164,7 +176,7 @@ version-specific Configuration Tool arguments to the platform version.
 
 | Level | What | How it runs |
 |---|---|---|
-| **Unit (in-platform)** | 20 cases covering `ParseMonthText`, `ParseRemainingLeaseMonths` (all upstream lease formats and edge cases) and `MapResaleRecord` (normalisation, price per sqm, each rejection rule). The logic lives in OutSystems, so the tests execute there via `SelfTest_RunAll`. | `GET /rest/SelfTestAPI/run`, asserted by [`tests/api/test_selftests.py`](tests/api/test_selftests.py) |
+| **Unit (in-platform)** | 20 cases covering `ParseMonthText`, `ParseRemainingLeaseMonths` (all upstream lease formats and edge cases) and `MapResaleRecord` (normalisation, price per sqm, each rejection rule). The logic lives in OutSystems, so the tests execute there via `SelfTest_RunAll`. | `GET /HDBResale_Tests/rest/SelfTestAPI/run`, asserted by [`tests/api/test_selftests.py`](tests/api/test_selftests.py) |
 | **API / integration** | Response shape, filters (case-insensitive), every sort option, SQL-injection-safe sort, paging without overlap, `maxRecords` clamp, date validation (400), summary consistent with search, median within [min, max], snapshot health | [`tests/api/test_resale_api.py`](tests/api/test_resale_api.py) (pytest) |
 | **Upstream contract** | Detects schema or format drift in data.gov.sg *before* it breaks the sync: field set, row-count plausibility, month/lease/storey formats, numeric prices, deterministic `_id` paging | [`tests/contract`](tests/contract), nightly |
 | **End-to-end UI** | Dashboard KPIs and charts render; a filter changes the KPIs; explore → filter → sort → detail; pagination; admin screen requires login | [`tests/e2e`](tests/e2e) (Playwright) |
@@ -173,7 +185,7 @@ version-specific Configuration Tool arguments to the platform version.
 ```bash
 pip install -r tests/requirements.txt
 pytest tests/contract                       # needs only internet access
-export APP_BASE_URL=https://<env>/Assessment
+export APP_BASE_URL=https://<env>.outsystemscloud.com   # environment root; suites add the module paths
 pytest tests/api                            # in-platform unit tests + API tests
 python -m playwright install chromium && pytest tests/e2e -m e2e --browser chromium
 cd infra/terraform && terraform init -backend=false && terraform test
@@ -205,11 +217,13 @@ followed by a read-only smoke test.
 
 ## 6. Assumptions, trade-offs and next steps
 
-* **Single module, layered internally.** The assessment environment provided one module, so
-  layers are separated by naming and responsibility rather than by module. In a real
-  factory I would split it (Architecture Canvas): `DataGovSG_IS` (integration),
-  `HDBResale_CS` (entities, sync, query services), `HDBResale_API`, `HDBResale` (UI), and a
-  `HDBResale_Tests` module. Then `SelfTestAPI` would not ship to Production at all.
+* **Six modules on the Architecture Canvas** (ADR-8): `HDBResale_Th` and `HDBResale_IS`
+  (Foundation), `HDBResale_CS` and `HDBResale_API` (Core), `HDBResale` (End-user), plus
+  `HDBResale_Tests` in its own LifeTime application, so `SelfTestAPI` never ships to
+  Production. Only CS writes data; its entities are exposed read-only to the UI.
+* **Empty values in API JSON.** OutSystems omits attributes that hold their default
+  value (`0`, `""`, empty list), so clients should treat a missing `startIndex` as `0`
+  and a missing `items` as `[]`. The tests do the same.
 * **Full refresh vs incremental.** A full snapshot takes about 245 API calls a day, which
   is trivial for upstream. In exchange it is always correct, even when upstream re-orders
   or revises rows. If the dataset grew 100×, I would switch to month-partitioned refreshes

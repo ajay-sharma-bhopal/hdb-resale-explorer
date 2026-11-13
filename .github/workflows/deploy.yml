@@ -3,6 +3,9 @@ name: deploy
 # Promotes the OutSystems application through the pipeline with the LifeTime
 # Deployment API v2, gating every hop on the automated tests:
 #   Development --(tag version)--> Test --(tests green + approval)--> Production
+# Two LifeTime applications are involved (see docs/architecture.md, ADR-8):
+#   OUTSYSTEMS_APPLICATION_NAME        Th, IS, CS, API and UI modules -> Test and Production
+#   OUTSYSTEMS_TESTS_APPLICATION_NAME  HDBResale_Tests                -> Test only, never Production
 on:
   workflow_dispatch:
     inputs:
@@ -19,7 +22,8 @@ permissions:
 
 env:
   LIFETIME_URL: ${{ vars.LIFETIME_URL }}
-  APPLICATION_NAME: ${{ vars.OUTSYSTEMS_APPLICATION_NAME }}
+  APPLICATION_NAME: ${{ vars.OUTSYSTEMS_APPLICATION_NAME || 'HDB Resale Explorer' }}
+  TESTS_APPLICATION_NAME: ${{ vars.OUTSYSTEMS_TESTS_APPLICATION_NAME || 'HDB Resale Explorer Tests' }}
 
 jobs:
   to-test:
@@ -37,6 +41,13 @@ jobs:
         name: Tag in Development and deploy to Test
         run: >
           python scripts/lifetime_deploy.py
+          --source "${{ vars.LT_DEV_ENVIRONMENT }}" --target "${{ vars.LT_TEST_ENVIRONMENT }}"
+          --tag --change-log "${{ inputs.change_log }}"
+        env:
+          LIFETIME_TOKEN: ${{ secrets.LIFETIME_TOKEN }}
+      - name: Deploy the test application (self-tests) to Test
+        run: >
+          python scripts/lifetime_deploy.py --application "$TESTS_APPLICATION_NAME"
           --source "${{ vars.LT_DEV_ENVIRONMENT }}" --target "${{ vars.LT_TEST_ENVIRONMENT }}"
           --tag --change-log "${{ inputs.change_log }}"
         env:

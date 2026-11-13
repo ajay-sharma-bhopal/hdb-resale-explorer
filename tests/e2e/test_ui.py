@@ -10,16 +10,16 @@ NUMBER = re.compile(r"^[\d,]+$")
 MONEY = re.compile(r"^S\$[\d,]+$")
 
 
-def test_dashboard_shows_kpis_and_charts(page: Page, base_url):
-    page.goto(f"{base_url}/Dashboard")
+def test_dashboard_shows_kpis_and_charts(page: Page, ui_url):
+    page.goto(f"{ui_url}/Dashboard")
     expect(page.get_by_text("HDB Resale Market Overview").first).to_be_visible()
     expect(page.locator(".kpi-value").first).to_have_text(NUMBER, timeout=30_000)
     expect(page.locator(".kpi-value").nth(1)).to_have_text(MONEY)
     expect(page.get_by_text("Average resale price by month")).to_be_visible()
 
 
-def test_town_filter_updates_kpis(page: Page, base_url):
-    page.goto(f"{base_url}/Dashboard")
+def test_town_filter_updates_kpis(page: Page, ui_url):
+    page.goto(f"{ui_url}/Dashboard")
     total = page.locator(".kpi-value").first
     expect(total).to_have_text(NUMBER, timeout=30_000)
     before = total.inner_text()
@@ -27,8 +27,8 @@ def test_town_filter_updates_kpis(page: Page, base_url):
     expect(total).not_to_have_text(before, timeout=30_000)
 
 
-def test_explore_filter_sort_and_open_detail(page: Page, base_url):
-    page.goto(f"{base_url}/Transactions")
+def test_explore_filter_sort_and_open_detail(page: Page, ui_url):
+    page.goto(f"{ui_url}/Transactions")
     rows = page.locator("table tbody tr")
     expect(rows.first).to_be_visible(timeout=30_000)
     page.get_by_label("Town").select_option(label="QUEENSTOWN")
@@ -40,14 +40,14 @@ def test_explore_filter_sort_and_open_detail(page: Page, base_url):
     expect(page.get_by_text("How this sale compares")).to_be_visible()
 
 
-def test_pagination_moves_to_next_page(page: Page, base_url):
-    page.goto(f"{base_url}/Transactions")
+def test_pagination_moves_to_next_page(page: Page, ui_url):
+    page.goto(f"{ui_url}/Transactions")
     summary = page.locator(".result-summary")
     expect(summary).to_contain_text("showing 1", timeout=30_000)
     page.get_by_role("button", name=re.compile("next", re.I)).click()
     expect(summary).to_contain_text("showing 26")
 
 
-def test_data_sync_requires_login(page: Page, base_url):
-    page.goto(f"{base_url}/DataSync")
+def test_data_sync_requires_login(page: Page, ui_url):
+    page.goto(f"{ui_url}/DataSync")
     expect(page).to_have_url(re.compile(r"Login|InvalidPermissions"), timeout=30_000)

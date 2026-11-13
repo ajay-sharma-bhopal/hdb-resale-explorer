@@ -72,8 +72,8 @@ OutSystems logic can't be imported into an external test runner, so unit tests r
 the platform (`SelfTest_RunAll`, table-driven: arrange → act → assert, 20 cases) and are
 triggered and asserted from CI through `SelfTestAPI`. External suites cover the API contract,
 the UI (Playwright) and upstream drift. IaC is tested offline with `terraform test` and a
-mocked provider. In a multi-module factory the self-tests would move to a dedicated test
-module that is never deployed to Production.
+mocked provider. The self-tests live in the dedicated `HDBResale_Tests` module, which is a
+separate LifeTime application that is never deployed to Production (ADR-8).
 
 ## ADR-7 One environment per Terraform state; servers are cattle-ish
 
@@ -83,3 +83,35 @@ Front-ends are plain EC2 instances, not an Auto Scaling group. OutSystems front-
 registered with the Deployment Controller, and scale-in needs deregistration, so a fixed,
 explicitly managed count is safer. EC2 auto-recover and AWS Backup provide the self-healing.
 Patching runs one server at a time.
+
+## ADR-8 Split into modules along the Architecture Canvas
+
+**Context.** A single module mixes integration, domain, API, UI and tests. Every change
+republishes everything, the tests ship to Production, and the data.gov.sg contract leaks into
+the UI.
+
+**Decision.** Six modules, references only pointing down or sideways within the Core layer:
+
+| Layer | Module | Owns | Public surface |
+|---|---|---|---|
+| End-user | `HDBResale` (Reactive) | Screens, menu, flows | none |
+| Core | `HDBResale_API` (Service) | Exposed REST `ResaleAPI`; HTTP mapping only | `/HDBResale_API/rest/ResaleAPI/*` |
+| Core | `HDBResale_CS` (Service) | Entities, sync timer, validation and mapping, query services, `DataAdmin` role | Read-only entities, `Resale_*`, `MapResaleRecord`, `Admin_RequestRefresh` |
+| Foundation | `HDBResale_IS` (Service) | REST consumer `DataGovSG` (private), API key | `DataGovSG_DatastoreSearch`, `ResaleRecordDTO`, `DatastorePage` |
+| Foundation | `HDBResale_Th` (Blank) | Theme and CSS on OutSystems UI | Theme `HDBResale` |
+| Test app | `HDBResale_Tests` (Service) | `SelfTest_RunAll`, `SelfTestAPI` | `/HDBResale_Tests/rest/SelfTestAPI/run` |
+
+* Only `HDBResale_CS` writes data. Its entities are exposed **read-only**, so the UI can use
+  platform-optimised aggregates without being able to modify the snapshot. The single write
+  path, `Admin_RequestRefresh`, checks `DataAdmin` on the server inside CS.
+* The integration's REST structures stay private to `HDBResale_IS`, which maps them to
+  public DTOs. A data.gov.sg format change is absorbed there and caught by the contract tests.
+* Site properties (sync tuning, API key) live in the module that reads them, so the UI holds
+  no configuration.
+* LifeTime applications: **HDB Resale Explorer** (Th, IS, CS, API, UI) is promoted
+  Dev → Test → Prod. **HDB Resale Explorer Tests** goes to Dev and Test only.
+
+**Consequences.** API and UI can be published independently of the sync logic; the tests
+never reach Production; `/health` is served by the API module, the platform health check
+used by the load balancer is unchanged. Cost: more references to manage, and the module
+boundaries are enforced by review and Architecture Dashboard rather than by the compiler.
