@@ -21,7 +21,7 @@ documentation.
 
 **Dataset:** [Resale flat prices based on registration date from Jan-2017 onwards](https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view)
 (Housing & Development Board, resource `d_8b84c4ee58e3cfc0ece0d773c8ca6abc`). I chose it
-because it is large, refreshed monthly and relevant to MSF's family-services work, and it
+because it is large, refreshed monthly and of broad public interest, and it
 supports more than a table: you can segment it, rank it, trend it over time and compare a
 single sale with the market.
 

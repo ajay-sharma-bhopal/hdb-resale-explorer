@@ -1,5 +1,5 @@
-bucket         = "msf-terraform-state-111111111111"
+bucket         = "hdbresale-terraform-state-111111111111"
 key            = "outsystems/dev/terraform.tfstate"
 region         = "ap-southeast-1"
-dynamodb_table = "msf-terraform-locks"
+dynamodb_table = "hdbresale-terraform-locks"
 encrypt        = true

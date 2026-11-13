@@ -28,7 +28,7 @@ variable "region" {
 variable "owner" {
   description = "Owning team, used for tagging and cost allocation."
   type        = string
-  default     = "msf-digital"
+  default     = "hdbresale-team"
 }
 
 variable "data_classification" {

@@ -1,7 +1,7 @@
 environment              = "dev"
 domain_name              = "hdb-resale.dev.example.gov.sg"
 acm_certificate_arn      = "arn:aws:acm:ap-southeast-1:111111111111:certificate/00000000-0000-0000-0000-000000000001"
-installer_bucket         = "msf-outsystems-installers"
+installer_bucket         = "hdbresale-outsystems-installers"
 allowed_ingress_cidrs    = ["10.0.0.0/8"] # agency network / VPN only
 frontend_count           = 0              # controller serves traffic
 single_nat_gateway       = true

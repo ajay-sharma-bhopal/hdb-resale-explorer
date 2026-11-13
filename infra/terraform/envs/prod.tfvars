@@ -1,7 +1,7 @@
 environment              = "prod"
 domain_name              = "hdb-resale.example.gov.sg"
 acm_certificate_arn      = "arn:aws:acm:ap-southeast-1:111111111111:certificate/00000000-0000-0000-0000-000000000003"
-installer_bucket         = "msf-outsystems-installers"
+installer_bucket         = "hdbresale-outsystems-installers"
 allowed_ingress_cidrs    = ["0.0.0.0/0"] # public citizen-facing service, protected by WAF
 vpc_cidr                 = "10.30.0.0/16"
 az_count                 = 3
@@ -12,4 +12,4 @@ db_multi_az              = true
 db_backup_retention_days = 35
 db_deletion_protection   = true
 log_retention_days       = 365
-alarm_email              = "msf-platform-oncall@example.gov.sg"
+alarm_email              = "hdbresale-oncall@example.gov.sg"
