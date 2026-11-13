@@ -248,6 +248,3 @@ followed by a read-only smoke test.
 * `configure-platform.ps1` (the unattended Configuration Tool call) is intentionally kept
   next to the installer rather than in this repo, because its arguments are
   platform-version specific.
-* AI extension (the JD asks for AI integration): a natural next step is a "Describe the
-  market" summary or a natural-language query over `Resale_GetSummary`, using
-  OutSystems' AI connectors, with the LLM given only aggregated, public numbers.
