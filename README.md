@@ -114,6 +114,13 @@ flowchart TB
 | `HDBResale_Th` | Theme `HDBResale` on OutSystems UI, CSS built from its design tokens |
 | `HDBResale_Tests` | `SelfTest_RunAll` (20 table-driven cases), exposed REST `SelfTestAPI` (`/run`), `Site.SelfTests_Enabled` |
 
+**Demo accounts (Dev/Test only).** The `EnsureDemoUsers` timer in `HDBResale_Tests` runs on
+every publish and calls `DemoUsers_Ensure`. It creates or resets `demo.admin` (granted
+`DataAdmin`) and `demo.viewer` (registered user, no `DataAdmin`), using the Users module's
+`EncryptPassword`, so passwords are stored hashed. The Login screen shows a "Demo accounts"
+panel, which fills in the form, only while those accounts exist. Because the tests app is
+never deployed to Production, the accounts and the panel cannot appear there.
+
 **Security:** `DataAdmin` gates the Data Sync screen **and** is re-checked on the server
 inside `Admin_RequestRefresh` (`CheckDataAdminRole()`). Public screens use the Anonymous role.
 
