@@ -51,3 +51,27 @@ def test_pagination_moves_to_next_page(page: Page, ui_url):
 def test_data_sync_requires_login(page: Page, ui_url):
     page.goto(f"{ui_url}/DataSync")
     expect(page).to_have_url(re.compile(r"Login|InvalidPermissions"), timeout=30_000)
+
+
+@pytest.mark.parametrize("name,is_admin", [("Demo Admin", True), ("Demo Viewer", False)])
+def test_demo_sign_in_by_name(page: Page, ui_url, name, is_admin):
+    """Dev/Test only: the login screen lists demo accounts by name; one click signs in.
+    Skipped where the panel is absent (the Tests app, which creates them, is not deployed)."""
+    page.goto(f"{ui_url}/Login")
+    panel = page.locator(".demo-accounts")
+    try:
+        expect(panel).to_be_visible(timeout=20_000)
+    except AssertionError:
+        pytest.skip("No demo accounts in this environment")
+    expect(panel).not_to_contain_text("HdbDemo")  # no credentials on the page
+    page.get_by_role("link", name=re.compile(name)).click()
+    expect(page).to_have_url(re.compile(r"/Dashboard"), timeout=30_000)
+    expect(page.get_by_text(name).first).to_be_visible(timeout=30_000)
+    data_sync = page.get_by_role("link", name="Data Sync")
+    if is_admin:
+        expect(data_sync).to_be_visible(timeout=30_000)
+        data_sync.click()
+        expect(page.get_by_text("Recent loads")).to_be_visible(timeout=30_000)
+    else:
+        expect(page.locator(".kpi-value").first).to_have_text(NUMBER, timeout=30_000)  # page fully loaded
+        expect(data_sync).to_have_count(0)

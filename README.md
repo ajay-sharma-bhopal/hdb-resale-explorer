@@ -117,9 +117,14 @@ flowchart TB
 **Demo accounts (Dev/Test only).** The `EnsureDemoUsers` timer in `HDBResale_Tests` runs on
 every publish and calls `DemoUsers_Ensure`. It creates or resets `demo.admin` (granted
 `DataAdmin`) and `demo.viewer` (registered user, no `DataAdmin`), using the Users module's
-`EncryptPassword`, so passwords are stored hashed. The Login screen shows a "Demo accounts"
-panel, which fills in the form, only while those accounts exist. Because the tests app is
-never deployed to Production, the accounts and the panel cannot appear there.
+`EncryptPassword`, so passwords are stored hashed. While those accounts exist, the Login
+screen shows a "Demo accounts" panel that lists them by name only (Demo Admin, Demo Viewer).
+One click calls the `DemoSignIn` server action, which signs the session in and opens the
+default page; no password is shown or sent. `DemoSignIn` accepts only those two usernames,
+and only if the active account exists. Because the tests app is never deployed to
+Production, the accounts do not exist there, so neither the panel nor the sign-in can work.
+`test_demo_sign_in_by_name` (E2E) covers both accounts, including that only the admin sees
+Data Sync.
 
 **UI.** Every screen follows one pattern: a page title, a one-line intro, a filter panel where relevant, then content cards. Overview shows the monthly trend at full width, then the town ranking and the flat-type mix side by side. The Data Sync menu item only appears for `DataAdmin` users; the menu's `GetMenuAccess` data action checks the role on the server, because roles defined in a Service module have no client-side check. *Theme pitfall:* the platform silently kept serving the previous `HDBResale_Th` stylesheet while it contained an external `@import` and an attribute selector (`a[id*="…"]`). Keep theme CSS free of both. Fonts are module resources: Inter (`inter-latin-wght-normal.woff2`, SIL OFL) is a resource of `HDBResale_Th`, loaded through `@font-face`; the platform rewrites the URL and ships the file with every consuming app. to check a deploy, compare the `Last-Modified` of `/HDBResale_Th/css/HDBResale_Th.HDBResale.css`.
 
