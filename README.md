@@ -111,7 +111,7 @@ flowchart TB
 | `HDBResale_CS` | Entities `ResaleTransaction` (read-only public; indexes on month, town + flat type + month, street + block), `SyncRun` (read-only public), static `SyncStatus`, private `ResaleTransactionStaging`. Pure, unit-tested rules `ParseMonthText`, `ParseRemainingLeaseMonths`, `MapResaleRecord`. Sync `Sync_ResolveRun`, `Sync_StartRun`, `Sync_ProcessPages`, `Sync_PublishSnapshot`, `Sync_UpdateRunStatus`, timer `SyncResaleTransactions`. Services `Resale_Search`, `Resale_GetSummary`, `Resale_GetHealth`, `Admin_RequestRefresh`. Role `DataAdmin`. Site properties `DataGovSG_ResourceId`, `Sync_*` |
 | `HDBResale_API` | Exposed REST `ResaleAPI`: `/transactions`, `/summary`, `/health` (HTTP mapping only) |
 | `HDBResale` | `MainFlow`: `Dashboard` (default), `Transactions`, `TransactionDetail`, `DataSync` (`DataAdmin`); screen aggregates over CS's read-only entities; OutSystems Charts |
-| `HDBResale_Th` | Base theme on OutSystems UI. The live design CSS (palette, cards, filter panel, KPI cards, tables, page headers, login) currently sits in the `HDBResale` app theme, which extends it; see the note below |
+| `HDBResale_Th` | Theme `HDBResale` on OutSystems UI: the whole design (palette, cards, filter panel, KPI cards, tables, page headers, login). The `HDBResale` app theme only extends it and adds no CSS |
 | `HDBResale_Tests` | `SelfTest_RunAll` (20 table-driven cases), exposed REST `SelfTestAPI` (`/run`), `Site.SelfTests_Enabled` |
 
 **Demo accounts (Dev/Test only).** The `EnsureDemoUsers` timer in `HDBResale_Tests` runs on
@@ -121,7 +121,7 @@ every publish and calls `DemoUsers_Ensure`. It creates or resets `demo.admin` (g
 panel, which fills in the form, only while those accounts exist. Because the tests app is
 never deployed to Production, the accounts and the panel cannot appear there.
 
-**UI.** Every screen follows one pattern: a page title, a one-line intro, a filter panel where relevant, then content cards. Overview shows the monthly trend at full width, then the town ranking and the flat-type mix side by side. The Data Sync menu item only appears for `DataAdmin` users; the menu's `GetMenuAccess` data action checks the role on the server, because roles defined in a Service module have no client-side check. *Note:* updates to the `HDBResale_Th` stylesheet were not being redeployed by the platform (the server kept serving the previous file), so the design CSS was put in the app theme instead. It should move back into `HDBResale_Th` once that is resolved.
+**UI.** Every screen follows one pattern: a page title, a one-line intro, a filter panel where relevant, then content cards. Overview shows the monthly trend at full width, then the town ranking and the flat-type mix side by side. The Data Sync menu item only appears for `DataAdmin` users; the menu's `GetMenuAccess` data action checks the role on the server, because roles defined in a Service module have no client-side check. *Theme pitfall:* the platform silently kept serving the previous `HDBResale_Th` stylesheet while it contained an external `@import` and an attribute selector (`a[id*="…"]`). Keep theme CSS free of both; to check a deploy, compare the `Last-Modified` of `/HDBResale_Th/css/HDBResale_Th.HDBResale.css`.
 
 **Security:** `DataAdmin` gates the Data Sync screen **and** is re-checked on the server
 inside `Admin_RequestRefresh` (`CheckDataAdminRole()`). Public screens use the Anonymous role.
